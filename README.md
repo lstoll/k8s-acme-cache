@@ -9,8 +9,9 @@ cache that stores keys as Kubernetes secrets.
 See the example application for a full example, but the basic usage looks like this
 ```go
 import (
-	"golang.org/x/crypto/acme/autocert"
-	"k8s.io/client-go/kubernetes"
+    "github.com/micahhausler/k8s-acme-cache" 
+    "golang.org/x/crypto/acme/autocert"
+    "k8s.io/client-go/kubernetes"
 )
 
 cache := k8s_acme_cache.KubernetesCache(
