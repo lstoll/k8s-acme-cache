@@ -13,6 +13,8 @@ type kubernetesCache struct {
 	Client     *kubernetes.Clientset
 }
 
+// Returns a autocert cache that will store the Certificate as a secret
+// in Kubernetes.
 func KubernetesCache(secret, namespace string, client *kubernetes.Clientset) autocert.Cache {
 	return kubernetesCache{
 		Namespace:  namespace,
