@@ -6,6 +6,26 @@
 An ACME [autocert](https://godoc.org/golang.org/x/crypto/acme/autocert#Cache)
 cache that stores keys as Kubernetes secrets.
 
+See the example application for a full example, but the basic usage looks like this
+```go
+import (
+	"golang.org/x/crypto/acme/autocert"
+	"k8s.io/client-go/kubernetes"
+)
+
+cache := k8s_acme_cache.KubernetesCache(
+    "my-acme-secret.secret",  // Secret Name
+    "default",                // Namespace
+    client,                   // Kubernetes client-go *kubernetes.ClientSet
+)
+
+certManager := autocert.Manager{
+    Prompt:     autocert.AcceptTOS,
+    HostPolicy: autocert.HostWhitelist("example.com"), //your domain here
+    Cache:      cache,                   
+}
+```
+
 ## Required RBAC permissions
 
 ```yaml
@@ -14,7 +34,6 @@ kind: Role
 metadata:
   name: <role-name>
 rules:
-
 - apiGroups:
   - ""
   resources:
