@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/micahhausler/k8s-acme-cache"
@@ -16,29 +17,40 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+func getBoolEnv(varname string) bool {
+	result := os.Getenv(varname)
+	switch result {
+	case "false", "FALSE", "False", "0":
+		return false
+	default:
+		return true
+	}
+}
+
 var domain = flag.StringArray("domain", []string{}, "The domain to use")
 var email = flag.String("email", "", "The email registering the cert")
 var port = flag.Int("port", 8443, "The port to listen on")
 
+var incluster = flag.Bool("incluster", getBoolEnv("IN_CLUSTER"), "Specify if the application is running in a cluster")
 var kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 
 var namespace = flag.String("namespace", "", "Namespace to use for cert storage.")
 var secretName = flag.String("secret", "acme.secret", "Secret to use for cert storage")
 
-func createClient(kubeconfig string) *kubernetes.Clientset {
+func createInClusterClient() (*kubernetes.Clientset, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-		if err != nil {
-			panic(err.Error())
-		}
+		return nil, err
 	}
+	return kubernetes.NewForConfig(config)
+}
 
-	clientset, err := kubernetes.NewForConfig(config)
+func createExternalClient(kubeconfig string) (*kubernetes.Clientset, error) {
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
-	return clientset
+	return kubernetes.NewForConfig(config)
 }
 
 func getNamespace() string {
@@ -55,7 +67,16 @@ func getNamespace() string {
 
 func main() {
 	flag.Parse()
-	client := createClient(*kubeconfig)
+	var client *kubernetes.Clientset
+	var err error
+	if *incluster {
+		client, err = createInClusterClient()
+	} else {
+		client, err = createExternalClient(*kubeconfig)
+	}
+	if err != nil {
+		panic(err)
+	}
 
 	cache := k8s_acme_cache.KubernetesCache(
 		*secretName,

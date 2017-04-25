@@ -1,6 +1,5 @@
 sudo: false
-language: go
-
+#language: go
 go:
 - 1.8
 - tip
@@ -11,3 +10,4 @@ before_install:
 script:
 - go test -coverprofile=coverage.out
 - go tool cover -func=coverage.out
+- go build ./example/main.go
