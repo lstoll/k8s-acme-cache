@@ -1,8 +1,9 @@
 package k8s_acme_cache
 
 import (
+	"context"
+
 	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/net/context"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api/v1"
 )

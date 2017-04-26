@@ -106,7 +106,6 @@ func main() {
 		log.Printf("Got request to %s", r.URL.String())
 	})
 
-	//cert, err := certManager.GetCertificate
 	portString := fmt.Sprintf(":%d", *port)
 
 	server := &http.Server{
