@@ -104,7 +104,7 @@ func (k kubernetesCache) Delete(ctx context.Context, name string) error {
 		case <-ctx.Done():
 		default:
 			var (
-				orphanDependents bool  = false
+				orphanDependents bool = false
 			)
 			// Don't overwrite the secret if the context was canceled.
 			err = k.Client.CoreV1().Secrets(k.Namespace).Delete(k.SecretName, &v1.DeleteOptions{
