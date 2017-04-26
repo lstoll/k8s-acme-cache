@@ -12,6 +12,7 @@ import (
 	"github.com/micahhausler/k8s-acme-cache"
 	flag "github.com/spf13/pflag"
 	"golang.org/x/crypto/acme/autocert"
+	"golang.org/x/crypto/acme"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -30,6 +31,8 @@ func getBoolEnv(varname string) bool {
 var domain = flag.String("domain", "", "The domain to use")
 var email = flag.String("email", "", "The email registering the cert")
 var port = flag.Int("port", 8443, "The port to listen on")
+
+var staging = flag.Bool("staging", getBoolEnv("STAGING"), "Use the letsencrypt staging server")
 
 var incluster = flag.Bool("incluster", getBoolEnv("IN_CLUSTER"), "Specify if the application is running in a cluster")
 var kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
@@ -84,6 +87,10 @@ func main() {
 		client,
 		1,
 	)
+	var acmeClient *acme.Client
+	if *staging {
+		acmeClient = &acme.Client{DirectoryURL: "https://acme-staging.api.letsencrypt.org/directory"}
+	}
 
 	log.Printf("Creating cert manager for domain %s", *domain)
 	certManager := autocert.Manager{
@@ -91,6 +98,7 @@ func main() {
 		HostPolicy: autocert.HostWhitelist(*domain), //your domain here
 		Cache:      cache,
 		Email:      *email,
+		Client:     acmeClient,
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
