@@ -8,18 +8,21 @@ import (
 )
 
 type kubernetesCache struct {
-	Namespace  string
-	SecretName string
-	Client     *kubernetes.Clientset
+	Namespace         string
+	SecretName        string
+	Client            kubernetes.Interface
+	deleteGracePeriod int64
 }
 
-// Returns a autocert cache that will store the Certificate as a secret
-// in Kubernetes.
-func KubernetesCache(secret, namespace string, client *kubernetes.Clientset) autocert.Cache {
+// KubernetesCache returns an autocert.Cache that will store the certificate as
+// a secret in Kubernetes. It accepts a secret name, namespace,
+// kubrenetes.Clientset, and grace period (in seconds)
+func KubernetesCache(secret, namespace string, client kubernetes.Interface, deleteGracePeriod int64) autocert.Cache {
 	return kubernetesCache{
-		Namespace:  namespace,
-		SecretName: secret,
-		Client:     client,
+		Namespace:         namespace,
+		SecretName:        secret,
+		Client:            client,
+		deleteGracePeriod: deleteGracePeriod,
 	}
 }
 
@@ -38,6 +41,7 @@ func (k kubernetesCache) Get(ctx context.Context, name string) ([]byte, error) {
 			return
 		}
 		data = secret.Data[name]
+
 	}()
 
 	select {
@@ -99,8 +103,14 @@ func (k kubernetesCache) Delete(ctx context.Context, name string) error {
 		select {
 		case <-ctx.Done():
 		default:
+			var (
+				orphanDependents bool  = false
+			)
 			// Don't overwrite the secret if the context was canceled.
-			_, err = k.Client.CoreV1().Secrets(k.Namespace).Update(secret)
+			err = k.Client.CoreV1().Secrets(k.Namespace).Delete(k.SecretName, &v1.DeleteOptions{
+				GracePeriodSeconds: &k.deleteGracePeriod,
+				OrphanDependents:   &orphanDependents,
+			})
 		}
 	}()
 	select {

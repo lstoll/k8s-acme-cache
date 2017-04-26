@@ -82,6 +82,7 @@ func main() {
 		*secretName,
 		getNamespace(),
 		client,
+		1,
 	)
 
 	certManager := autocert.Manager{

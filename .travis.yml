@@ -12,6 +12,7 @@ install:
 - dep status
 
 script:
+- go test -race
 - go test -coverprofile=coverage.out
 - go tool cover -func=coverage.out
 - go build ./example/main.go
