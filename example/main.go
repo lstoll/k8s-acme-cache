@@ -27,7 +27,7 @@ func getBoolEnv(varname string) bool {
 	}
 }
 
-var domain = flag.StringArray("domain", []string{}, "The domain to use")
+var domain = flag.String("domain", "", "The domain to use")
 var email = flag.String("email", "", "The email registering the cert")
 var port = flag.Int("port", 8443, "The port to listen on")
 
@@ -85,15 +85,17 @@ func main() {
 		1,
 	)
 
+	log.Printf("Creating cert manager for domain %s", *domain)
 	certManager := autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
-		HostPolicy: autocert.HostWhitelist(*domain...), //your domain here
-		Cache:      cache,                              //folder for storing certificates
+		HostPolicy: autocert.HostWhitelist(*domain), //your domain here
+		Cache:      cache,
 		Email:      *email,
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello world"))
+		log.Printf("Got request to %s", r.URL.String())
 	})
 
 	//cert, err := certManager.GetCertificate
@@ -105,6 +107,7 @@ func main() {
 			GetCertificate: certManager.GetCertificate,
 		},
 	}
+	log.Printf("listening on %s", server.Addr)
 	log.Fatal(server.ListenAndServeTLS("", "")) //key and cert are comming from Let's Encrypt
 
 }
