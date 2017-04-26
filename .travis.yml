@@ -4,6 +4,11 @@ go:
 - 1.8
 - tip
 
+cache:
+  directories:
+  - $GOPATH/src
+  - $GOPATH/pkg
+
 before_install:
 - go get golang.org/x/tools/cmd/cover
 - go get -u github.com/golang/dep/...
@@ -12,6 +17,7 @@ install:
 - dep status
 
 script:
+- go test -i
 - go test -race
 - go test -coverprofile=coverage.out
 - go tool cover -func=coverage.out
