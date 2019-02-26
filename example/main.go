@@ -9,10 +9,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/micahhausler/k8s-acme-cache"
+	k8s_acme_cache "github.com/lstoll/k8s-acme-cache"
 	flag "github.com/spf13/pflag"
-	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/acme"
+	"golang.org/x/crypto/acme/autocert"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"

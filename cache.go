@@ -4,8 +4,9 @@ import (
 	"context"
 
 	"golang.org/x/crypto/acme/autocert"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api/v1"
 )
 
 type kubernetesCache struct {
@@ -36,7 +37,7 @@ func (k kubernetesCache) Get(ctx context.Context, name string) ([]byte, error) {
 
 	go func() {
 		var secret *v1.Secret
-		secret, err = k.Client.CoreV1().Secrets(k.Namespace).Get(k.SecretName)
+		secret, err = k.Client.CoreV1().Secrets(k.Namespace).Get(k.SecretName, metav1.GetOptions{})
 		defer close(done)
 		if err != nil {
 			return
@@ -65,7 +66,7 @@ func (k kubernetesCache) Put(ctx context.Context, name string, data []byte) erro
 		defer close(done)
 		var secret *v1.Secret
 
-		secret, err = k.Client.CoreV1().Secrets(k.Namespace).Get(k.SecretName)
+		secret, err = k.Client.CoreV1().Secrets(k.Namespace).Get(k.SecretName, metav1.GetOptions{})
 		if err != nil {
 			return
 		}
@@ -95,7 +96,7 @@ func (k kubernetesCache) Delete(ctx context.Context, name string) error {
 		defer close(done)
 		var secret *v1.Secret
 
-		secret, err = k.Client.CoreV1().Secrets(k.Namespace).Get(k.SecretName)
+		secret, err = k.Client.CoreV1().Secrets(k.Namespace).Get(k.SecretName, metav1.GetOptions{})
 		if err != nil {
 			return
 		}
@@ -108,7 +109,7 @@ func (k kubernetesCache) Delete(ctx context.Context, name string) error {
 				orphanDependents bool = false
 			)
 			// Don't overwrite the secret if the context was canceled.
-			err = k.Client.CoreV1().Secrets(k.Namespace).Delete(k.SecretName, &v1.DeleteOptions{
+			err = k.Client.CoreV1().Secrets(k.Namespace).Delete(k.SecretName, &metav1.DeleteOptions{
 				GracePeriodSeconds: &k.deleteGracePeriod,
 				OrphanDependents:   &orphanDependents,
 			})

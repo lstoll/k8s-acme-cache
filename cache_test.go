@@ -8,9 +8,10 @@ import (
 
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/context"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/pkg/runtime"
 	k8s_testing "k8s.io/client-go/testing"
 )
 
@@ -70,7 +71,7 @@ func TestKubernetesCacheGetSuccess(t *testing.T) {
 	dataName := "myhost.com"
 
 	secret := &v1.Secret{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
 			Namespace: namespace,
 		},
@@ -122,7 +123,7 @@ func TestKubernetesCachePutNoSecret(t *testing.T) {
 	)
 
 	err := cache.Put(context.Background(), "data", []byte("data"))
-	if err.Error() != `Secret "mysecret" not found` {
+	if err.Error() != `secrets "mysecret" not found` {
 		t.Errorf("Unexpected error: %s", err.Error())
 	}
 }
@@ -134,7 +135,7 @@ func TestKubernetesCachePutTimeout(t *testing.T) {
 	dataName := "myhost.com"
 
 	secret := &v1.Secret{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
 			Namespace: namespace,
 		},
@@ -176,7 +177,7 @@ func TestKubernetesCachePutSuccess(t *testing.T) {
 	dataName := "myhost.com"
 
 	secret := &v1.Secret{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
 			Namespace: namespace,
 		},
@@ -225,7 +226,7 @@ func TestKubernetesCacheDeleteNoSecret(t *testing.T) {
 	)
 
 	err := cache.Delete(context.Background(), "data")
-	if err.Error() != `Secret "mysecret" not found` {
+	if err.Error() != `secrets "mysecret" not found` {
 		t.Errorf("Unexpected error: %s", err.Error())
 	}
 }
@@ -237,7 +238,7 @@ func TestKubernetesCacheDeleteTimeout(t *testing.T) {
 	dataName := "myhost.com"
 
 	secret := &v1.Secret{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
 			Namespace: namespace,
 		},
@@ -279,7 +280,7 @@ func TestKubernetesCacheDeleteSuccess(t *testing.T) {
 	dataName := "myhost.com"
 
 	secret := &v1.Secret{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
 			Namespace: namespace,
 		},
