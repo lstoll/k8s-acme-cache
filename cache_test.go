@@ -1,19 +1,25 @@
-package k8s_acme_cache
+package k8sacmecache
 
 import (
 	"bytes"
 	"errors"
+	"flag"
 	"testing"
 	"time"
 
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/context"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	k8s_testing "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/clientcmd"
 )
+
+var kubeconfig = flag.String("kubeconfig", "", "Cluster to run tests against, if non-empty. Otherwise, use fake clientset")
 
 func TestKubernetesCacheNoSecret(t *testing.T) {
 
@@ -23,9 +29,9 @@ func TestKubernetesCacheNoSecret(t *testing.T) {
 		return true, nil, errors.New("Not Authorized")
 	})
 
-	cache := KubernetesCache(
-		"mysecret",
+	cache := New(
 		"default",
+		"mysecret",
 		cli,
 		1,
 	)
@@ -45,9 +51,9 @@ func TestKubernetesCacheContextTimeout(t *testing.T) {
 		return true, &v1.Secret{}, nil
 	})
 
-	cache := KubernetesCache(
-		secretName,
+	cache := New(
 		namespace,
+		secretName,
 		cli,
 		1,
 	)
@@ -76,7 +82,7 @@ func TestKubernetesCacheGetSuccess(t *testing.T) {
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
-			dataName: secretData,
+			secretKey(dataName): secretData,
 		},
 		Type: v1.SecretType("Opaque"),
 	}
@@ -87,9 +93,9 @@ func TestKubernetesCacheGetSuccess(t *testing.T) {
 		return true, secret, nil
 	})
 
-	cache := KubernetesCache(
-		secretName,
+	cache := New(
 		namespace,
+		secretName,
 		cli,
 		1,
 	)
@@ -115,16 +121,16 @@ func TestKubernetesCachePutNoSecret(t *testing.T) {
 		return true, nil, errors.New("Doesn't Exist")
 	})
 
-	cache := KubernetesCache(
-		"mysecret",
+	cache := New(
 		"default",
+		"mysecret",
 		cli,
 		1,
 	)
 
 	err := cache.Put(context.Background(), "data", []byte("data"))
-	if err.Error() != `secrets "mysecret" not found` {
-		t.Errorf("Unexpected error: %s", err.Error())
+	if err != nil {
+		t.Errorf("Unexpected error when putting new secret: %+v", err)
 	}
 }
 
@@ -140,7 +146,7 @@ func TestKubernetesCachePutTimeout(t *testing.T) {
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
-			dataName: secretData,
+			secretKey(dataName): secretData,
 		},
 		Type: v1.SecretType("Opaque"),
 	}
@@ -155,9 +161,9 @@ func TestKubernetesCachePutTimeout(t *testing.T) {
 		return true, secret, nil
 	})
 
-	cache := KubernetesCache(
-		secretName,
+	cache := New(
 		namespace,
+		secretName,
 		cli,
 		1,
 	)
@@ -182,7 +188,7 @@ func TestKubernetesCachePutSuccess(t *testing.T) {
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
-			dataName: secretData,
+			secretKey(dataName): secretData,
 		},
 		Type: v1.SecretType("Opaque"),
 	}
@@ -197,9 +203,9 @@ func TestKubernetesCachePutSuccess(t *testing.T) {
 		return true, secret, nil
 	})
 
-	cache := KubernetesCache(
-		secretName,
+	cache := New(
 		namespace,
+		secretName,
 		cli,
 		1,
 	)
@@ -218,9 +224,9 @@ func TestKubernetesCacheDeleteNoSecret(t *testing.T) {
 		return true, nil, errors.New("Doesn't Exist")
 	})
 
-	cache := KubernetesCache(
-		"mysecret",
+	cache := New(
 		"default",
+		"mysecret",
 		cli,
 		1,
 	)
@@ -243,7 +249,7 @@ func TestKubernetesCacheDeleteTimeout(t *testing.T) {
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
-			dataName: secretData,
+			secretKey(dataName): secretData,
 		},
 		Type: v1.SecretType("Opaque"),
 	}
@@ -258,9 +264,9 @@ func TestKubernetesCacheDeleteTimeout(t *testing.T) {
 		return true, secret, nil
 	})
 
-	cache := KubernetesCache(
-		secretName,
+	cache := New(
 		namespace,
+		secretName,
 		cli,
 		1,
 	)
@@ -285,7 +291,7 @@ func TestKubernetesCacheDeleteSuccess(t *testing.T) {
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
-			dataName: secretData,
+			secretKey(dataName): secretData,
 		},
 		Type: v1.SecretType("Opaque"),
 	}
@@ -300,9 +306,9 @@ func TestKubernetesCacheDeleteSuccess(t *testing.T) {
 		return true, secret, nil
 	})
 
-	cache := KubernetesCache(
-		secretName,
+	cache := New(
 		namespace,
+		secretName,
 		cli,
 		0,
 	)
@@ -310,5 +316,80 @@ func TestKubernetesCacheDeleteSuccess(t *testing.T) {
 
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err.Error())
+	}
+}
+
+func TestE2E(t *testing.T) {
+	if *kubeconfig == "" {
+		t.Skip("kubeconfig not provided")
+	}
+
+	ctx := context.Background()
+
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const (
+		ns = "k8s-acme-cache-test"
+		n  = "acmecache"
+	)
+
+	cache := New(
+		ns,
+		n,
+		clientset,
+		0,
+	)
+
+	// blindly clean up first.
+	_ = clientset.CoreV1().Secrets(ns).Delete(n, &metav1.DeleteOptions{})
+	_, err = clientset.CoreV1().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		t.Fatalf("Couldn't create test namespace: %+v", err)
+	}
+
+	_, err = cache.Get(ctx, "test+1")
+	if err != autocert.ErrCacheMiss {
+		t.Fatalf("Unexpected error when getting key in non-existent secret: %+v", err)
+	}
+
+	if err = cache.Put(ctx, "test+1", []byte("hello")); err != nil {
+		t.Fatalf("Unexpected error when putting a secret: %+v", err)
+	}
+
+	if err = cache.Put(ctx, "test+2", []byte("hello2")); err != nil {
+		t.Fatalf("Unexpected error when putting a secret: %+v", err)
+	}
+
+	ret, err := cache.Get(ctx, "test+1")
+	if err != nil {
+		t.Fatalf("Unexpected error when getting a secret: %+v", err)
+	}
+	if string(ret) != "hello" {
+		t.Fatalf("Want \"hello\" got %q", string(ret))
+	}
+
+	if err = cache.Delete(ctx, "test+1"); err != nil {
+		t.Fatalf("Unexpected error when deleting a secret: %+v", err)
+	}
+
+	ret, err = cache.Get(ctx, "test+2")
+	if err != nil {
+		t.Fatalf("Unexpected error when getting secret after deleting different key: %+v", err)
+	}
+	if string(ret) != "hello2" {
+		t.Fatalf("Want \"hello2\" got %q", string(ret))
+	}
+
+	_, err = cache.Get(ctx, "test+3")
+	if err != autocert.ErrCacheMiss {
+		t.Fatalf("Unexpected error when getting non-existent key in existing secret: %+v", err)
 	}
 }

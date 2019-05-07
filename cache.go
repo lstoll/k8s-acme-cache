@@ -1,10 +1,12 @@
-package k8s_acme_cache
+package k8sacmecache
 
 import (
 	"context"
+	"encoding/base64"
 
 	"golang.org/x/crypto/acme/autocert"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -19,16 +21,16 @@ type kubernetesCache struct {
 // KubernetesCache returns an autocert.Cache that will store the certificate as
 // a secret in Kubernetes. It accepts a secret name, namespace,
 // kubrenetes.Clientset, and grace period (in seconds)
-func KubernetesCache(secret, namespace string, client kubernetes.Interface, deleteGracePeriod int64) autocert.Cache {
-	return kubernetesCache{
+func New(namespace, secretName string, client kubernetes.Interface, deleteGracePeriod int64) autocert.Cache {
+	return &kubernetesCache{
 		Namespace:         namespace,
-		SecretName:        secret,
+		SecretName:        secretName,
 		Client:            client,
 		deleteGracePeriod: deleteGracePeriod,
 	}
 }
 
-func (k kubernetesCache) Get(ctx context.Context, name string) ([]byte, error) {
+func (k *kubernetesCache) Get(ctx context.Context, name string) ([]byte, error) {
 	var (
 		data []byte
 		done = make(chan struct{})
@@ -42,8 +44,11 @@ func (k kubernetesCache) Get(ctx context.Context, name string) ([]byte, error) {
 		if err != nil {
 			return
 		}
-		data = secret.Data[name]
-
+		var ok bool
+		data, ok = secret.Data[secretKey(name)]
+		if !ok {
+			err = autocert.ErrCacheMiss
+		}
 	}()
 
 	select {
@@ -57,7 +62,7 @@ func (k kubernetesCache) Get(ctx context.Context, name string) ([]byte, error) {
 	return data, err
 }
 
-func (k kubernetesCache) Put(ctx context.Context, name string, data []byte) error {
+func (k *kubernetesCache) Put(ctx context.Context, name string, data []byte) error {
 	var (
 		err  error
 		done = make(chan struct{})
@@ -68,9 +73,21 @@ func (k kubernetesCache) Put(ctx context.Context, name string, data []byte) erro
 
 		secret, err = k.Client.CoreV1().Secrets(k.Namespace).Get(k.SecretName, metav1.GetOptions{})
 		if err != nil {
-			return
+			if apierrors.IsNotFound(err) {
+				secret, err = k.Client.CoreV1().Secrets(k.Namespace).Create(&v1.Secret{
+					ObjectMeta: metav1.ObjectMeta{Namespace: k.Namespace, Name: k.SecretName},
+				})
+				if err != nil {
+					return
+				}
+			} else {
+				return
+			}
 		}
-		secret.Data[name] = data
+		if secret.Data == nil {
+			secret.Data = map[string][]byte{}
+		}
+		secret.Data[secretKey(name)] = data
 
 		select {
 		case <-ctx.Done():
@@ -87,7 +104,7 @@ func (k kubernetesCache) Put(ctx context.Context, name string, data []byte) erro
 	return err
 }
 
-func (k kubernetesCache) Delete(ctx context.Context, name string) error {
+func (k *kubernetesCache) Delete(ctx context.Context, name string) error {
 	var (
 		err  error
 		done = make(chan struct{})
@@ -100,13 +117,17 @@ func (k kubernetesCache) Delete(ctx context.Context, name string) error {
 		if err != nil {
 			return
 		}
-		delete(secret.Data, name)
+		delete(secret.Data, secretKey(name))
+
+		if len(secret.Data) > 0 {
+			return // other cached keys
+		}
 
 		select {
 		case <-ctx.Done():
 		default:
 			var (
-				orphanDependents bool = false
+				orphanDependents = false
 			)
 			// Don't overwrite the secret if the context was canceled.
 			err = k.Client.CoreV1().Secrets(k.Namespace).Delete(k.SecretName, &metav1.DeleteOptions{
@@ -121,4 +142,10 @@ func (k kubernetesCache) Delete(ctx context.Context, name string) error {
 	case <-done:
 	}
 	return err
+}
+
+// secretKey returns a kubernetes secret key safe representation of the given
+// key.
+func secretKey(key string) string {
+	return base64.StdEncoding.EncodeToString([]byte(key))
 }
