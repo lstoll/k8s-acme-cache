@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -9,8 +10,7 @@ import (
 	"os"
 	"strings"
 
-	k8s_acme_cache "github.com/lstoll/k8s-acme-cache"
-	flag "github.com/spf13/pflag"
+	k8sacmecache "github.com/lstoll/k8s-acme-cache"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"k8s.io/client-go/kubernetes"
@@ -81,7 +81,7 @@ func main() {
 		panic(err)
 	}
 
-	cache := k8s_acme_cache.New(
+	cache := k8sacmecache.New(
 		getNamespace(),
 		*secretName,
 		client,

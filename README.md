@@ -14,9 +14,9 @@ import (
     "k8s.io/client-go/kubernetes"
 )
 
-cache := k8s_acme_cache.KubernetesCache(
-    "my-acme-secret.secret",  // Secret Name
+cache := k8sacmecache.New(
     "default",                // Namespace
+    "my-acme-secret.secret",  // Secret Name
     client,                   // Kubernetes client-go *kubernetes.ClientSet
     0,                        // Deletion Grace Period in seconds
 )

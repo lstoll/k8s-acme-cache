@@ -1,4 +1,4 @@
-package k8s_acme_cache
+package k8sacmecache
 
 import (
 	"context"
