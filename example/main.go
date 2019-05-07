@@ -81,9 +81,9 @@ func main() {
 		panic(err)
 	}
 
-	cache := k8s_acme_cache.KubernetesCache(
-		*secretName,
+	cache := k8s_acme_cache.New(
 		getNamespace(),
+		*secretName,
 		client,
 		1,
 	)
